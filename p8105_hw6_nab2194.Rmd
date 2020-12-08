@@ -1,0 +1,154 @@
+---
+title: 'Homework 6: Linear Models'
+author: "Natalie Boychuk"
+date: "12/7/2020"
+output: html_document
+---
+
+
+```{r setup, include = FALSE}
+library(tidyverse)
+library(dplyr)
+library(rvest)
+library(purrr)
+library(ggplot2)
+library(modelr)
+library(mgcv)
+library(patchwork)
+set.seed(1)
+knitr::opts_chunk$set(
+  fig.width = 6,
+  fig.asp = .6,
+  out.width = "90%"
+)
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+scale_colour_discrete = scale_color_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+```
+
+
+## Problem 1 
+
+```{r}
+```{r}
+  homicide_df = 
+    read_csv("data/homicide-data.csv") %>% 
+    mutate(
+      city_state = str_c(city, state, sep = "_"),
+      resolved = case_when(
+        disposition == "Closed without arrest" ~ 0,
+        disposition == "Open/No arrest" ~ 0,
+        disposition == "Closed by arrest" ~ 1
+        )) %>% 
+    filter((city_state != "Tulsa_AL"),
+           (city_state != "Phoenix_AZ"),
+           (city_state != "Kansas City_MO"),
+           (city_state != "Dallas_TX"),
+           (victim_race %in% c("White", "Black"))) %>% 
+    select(city_state, resolved, victim_age, victim_race, victim_sex) %>% 
+    mutate(victim_age = as.numeric(victim_age)) 
+  
+```
+
+```{r}
+baltimore_df = 
+  homicide_df %>% 
+  filter(city_state == "Baltimore_MD")
+
+glm(resolved ~ victim_age + victim_race + victim_sex,
+    data = baltimore_df, 
+    family = binomial()) %>% 
+  broom::tidy() %>% 
+  mutate(
+    OR = exp(estimate),
+    CI_lower = exp(estimate - 1.96 * std.error),
+    CI_upper = exp(estimate + 1.96 * std.error)
+  ) %>% 
+  select(term, OR, starts_with("CI")) %>%  
+  knitr::kable(digits = 3)
+
+```
+
+Across cities 
+```{r}
+models_results_df = 
+  homicide_df %>% 
+  nest(data = -city_state) %>% 
+mutate(
+  models = 
+    map(.x = data, ~glm(glm(resolved ~ victim_age + victim_race + victim_sex, data = .x, family = binomial()))),
+  results = map(models, broom::tidy) 
+  ) %>% 
+select(city_state, results) %>% 
+ unnest(results) %>% 
+  mutate(
+    OR = exp(estimate),
+    CI_lower = exp(estimate - 1.96 * std.error),
+    CI_upper = exp(estimate + 1.96 * std.error)
+  ) %>% 
+  select(city_state, term, OR, starts_with("CI"))
+
+```
+
+```{r}
+models_results_df %>% 
+  filter(term == "victim_sexMale") %>% 
+  mutate(city_state = fct_reorder(city_state, OR)) %>% 
+  ggplot(aes(x = city_state, y = OR)) + 
+  geom_point() + 
+  geom_errorbar(aes(ymin = CI_lower, ymax = CI_upper)) + 
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+Comments on the plot: 
+
+
+## Problem 2 
+
+```{r}
+birthweight_df = 
+  read_csv("data/birthweight.csv") %>% 
+  mutate(mrace = as.factor(mrace),
+         malform = as.factor(malform)) 
+
+## Look for missing data 
+
+tail(birthweight_df,100)
+
+head(birthweight_df,100)
+
+skimr::skim(birthweight_df)
+
+## it all looks okay to me. Variable names are already clean and columns look good 
+
+```
+
+Given background knowledge/research (I work for a lab that studies maternal/infant mortality and morbidity), I first hypothesize that cigarette smoking causes low birthweight that that low maternal age at delivery, maternal race, and family income might confound this relationship, while the mother's pre-pregnancy weight in pounds might modify the relationship.
+
+I would also like to be clear that I am not hypothesizing that race in and of itself is a cause of low birthweight; rather, structural inequalities associated with being a Black mother in the United States cause low birthweight in infants.
+
+```{r visualizing the dataset to assess linearity}
+
+birthweight_df %>% 
+  ggplot(aes(x = smoken, y = bwt)) + 
+  geom_point()
+```
+
+This plot shows that the
+
+
+```{r creating test/training variables}
+
+## Anti join of test/train df with train df = .8 of total sample (4342 *.8)
+
+#train_df = sample_n(birthweight_df, 3474)
+#test_df = anti_join(birthweight_df, train_df, by = "id")
+
+```
+
+
