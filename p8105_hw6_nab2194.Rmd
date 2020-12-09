@@ -169,8 +169,8 @@ All of the predictors are significantly associated with the outcome, so I have n
 
 
 ```{r fitting the initial model }
-  
-lm(bwt ~ smoken + mrace + gaweeks + momage + fincome + smoken * ppwt, data = birthweight_df) %>%
+
+glm(bwt ~ smoken + mrace + gaweeks + momage + fincome + smoken * ppwt, data = birthweight_df) %>%
   broom::tidy() %>% 
   knitr::kable()
 
@@ -179,7 +179,7 @@ lm(bwt ~ smoken + mrace + gaweeks + momage + fincome + smoken * ppwt, data = bir
 From this initial model, it does not look like the mother's age at delivery or family income is adding anything to the model. Also, it looks like mother's pre-pregnancy weight is significant but not in interaction with smoking. For parsimony, I'll drop these predictors that were insignificant in the model using a backwards stepwise approach, removing one at a time. 
 
 ```{r}
-lm(bwt ~ smoken + mrace + gaweeks + momage + fincome + ppwt, data = birthweight_df) %>%
+glm(bwt ~ smoken + mrace + gaweeks + momage + fincome + ppwt, data = birthweight_df) %>%
   broom::tidy() %>% 
   knitr::kable()
 ```
@@ -187,7 +187,7 @@ lm(bwt ~ smoken + mrace + gaweeks + momage + fincome + ppwt, data = birthweight_
 Fincome is still not significant so I will also drop this variable. 
 
 ```{r}
-lm(bwt ~ smoken + mrace + gaweeks + momage + ppwt, data = birthweight_df) %>%
+glm(bwt ~ smoken + mrace + gaweeks + momage + ppwt, data = birthweight_df) %>%
   broom::tidy() %>% 
   knitr::kable()
 ```
@@ -195,7 +195,7 @@ lm(bwt ~ smoken + mrace + gaweeks + momage + ppwt, data = birthweight_df) %>%
 I will also drop momage, which is not significant when accounting for the other variables. 
 
 ```{r}
-bwmodel = lm(bwt ~ smoken + mrace + gaweeks + ppwt, data = birthweight_df)
+bwmodel = glm(bwt ~ smoken + mrace + gaweeks + ppwt, data = birthweight_df)
 
 bwmodel %>% 
   broom::tidy() %>% 
@@ -223,13 +223,13 @@ birthweight_df %>%
 
 Model 2 (from HW): 
 ```{r}
-model2 = lm(bwt ~ blength + gaweeks, data = birthweight_df) 
+model2 = glm(bwt ~ blength + gaweeks, data = birthweight_df) 
 
 ```
 
 Model 3 (from HW): 
 ```{r}
-model3 = lm(bwt ~ bhead * blength * babysex, data = birthweight_df)
+model3 = glm(bwt ~ bhead * blength * babysex, data = birthweight_df)
 ```
 
 
@@ -246,9 +246,9 @@ cv_df =
 cv_df = 
   cv_df %>% 
   mutate(
-    bwmodel = map(train, ~lm(bwt ~ smoken + mrace + gaweeks + ppwt, data = birthweight_df)),
-    model2 = map(train, ~lm(bwt ~ blength + gaweeks, data = birthweight_df)),
-    model3 = map(train, ~lm(bwt ~ bhead * blength * babysex, data = birthweight_df))) %>% 
+    bwmodel = map(train, ~mgcv::gam(bwt ~ s(smoken + mrace + gaweeks + ppwt), data = birthweight_df)),
+    model2 = map(train, ~mgcv::gam(bwt ~ s(blength + gaweeks), data = birthweight_df)),
+    model3 = map(train, ~mgcv::gam(bwt ~ s(bhead * blength * babysex), data = birthweight_df))) %>%
   mutate(
     rmse_bwmodel = map2_dbl(bwmodel, test, ~rmse(model = .x, data = .y)),
     rmse_model2 = map2_dbl(model2, test, ~rmse(model = .x, data = .y)),
@@ -287,4 +287,33 @@ weather_df =
     tmax = tmax / 10) %>%
   select(name, id, everything())
 ```
+
+```{r fitting a simple model to the data}
+model_weather = 
+  lm(tmax ~ tmin, data = weather_df) 
+```
+
+```{r getting values for a single model}
+
+rsquare = 
+model_weather %>% 
+  broom::glance() %>% 
+  select(r.squared)
+
+logb0b1 = 
+model_weather %>% 
+  broom::tidy() %>% 
+  pivot_wider(term,
+              names_from = "term",
+              values_from = "estimate") %>% 
+    mutate(value = 
+           `(Intercept)` * tmin) %>% 
+              select(value)
+
+```
+
+```{r bootstrapping}
+
+```
+
 
