@@ -128,7 +128,7 @@ skimr::skim(birthweight_df)
 
 ```
 
-Given background knowledge/research (I work for a lab that studies maternal/infant mortality and morbidity and I did a quick literature search [ex: (https://www.marchofdimes.org/complications/low-birthweight.aspx)]), I first hypothesize that cigarette smoking is the primary cause of low birthweight. I further hypothesize that low maternal age at delivery, maternal race, and family income might confound this relationship, and that gestational age in weeks modifies this relationship, as maternal smoking increases the risk of a premature baby. 
+Given background knowledge/research (I work for a lab that studies maternal/infant mortality and morbidity and I did a quick literature search [ex: (https://www.marchofdimes.org/complications/low-birthweight.aspx)]), I first hypothesize that premature is the primary cause of low birthweight. I further hypothesize that cigarette smoking, mother's weight at delivery, mother's age at delivery, maternal race, and family income might confound this relationship.
 
 I would also like to be clear that I am not hypothesizing that race in and of itself is a cause of low birthweight; rather, structural inequalities associated with being a Black mother in the United States cause low birthweight in infants.
 
@@ -136,14 +136,14 @@ I would also like to be clear that I am not hypothesizing that race in and of it
 My first step is to test to see whether the distribution is approximately normal by plotting cigarette smoking on bwt: 
 ```{r}
 birthweight_df %>% 
-  ggplot(aes(x = smoken, y = bwt)) + geom_point()
+  ggplot(aes(x = gaweeks, y = bwt)) + geom_point()
 ```
-Looks like a linear model will 10000% not work here, based on my above results. Good to know. 
+Looks like a linear model will not work here, based on my above results. Good to know. I will use the "glm" function to reflect that the data follow a non-Gaussian distribution. 
 
 
 ```{r fitting the initial model }
 
-glm(bwt ~ smoken + mrace + gaweeks + momage + fincome + smoken * ppwt, data = birthweight_df) %>%
+glm(bwt ~ gaweeks + mrace + smoken + momage + fincome + smoken * ppwt, data = birthweight_df) %>%
   broom::tidy() %>% 
   knitr::kable()
 
@@ -152,7 +152,7 @@ glm(bwt ~ smoken + mrace + gaweeks + momage + fincome + smoken * ppwt, data = bi
 From this initial model, it does not look like the mother's age at delivery or family income is adding anything to the model. Also, it looks like mother's pre-pregnancy weight is significant but not in interaction with smoking. For parsimony, I'll drop these predictors that were insignificant in the model using a backwards stepwise approach, removing one at a time. 
 
 ```{r}
-glm(bwt ~ smoken + mrace + gaweeks + momage + fincome + ppwt, data = birthweight_df) %>%
+glm(bwt ~ gaweeks + mrace + smoken + momage + fincome + ppwt, data = birthweight_df) %>%
   broom::tidy() %>% 
   knitr::kable()
 ```
@@ -160,7 +160,7 @@ glm(bwt ~ smoken + mrace + gaweeks + momage + fincome + ppwt, data = birthweight
 Fincome is still not significant so I will also drop this variable. 
 
 ```{r}
-glm(bwt ~ smoken + mrace + gaweeks + momage + ppwt, data = birthweight_df) %>%
+glm(bwt ~ gaweeks + mrace + smoken + momage + ppwt, data = birthweight_df) %>%
   broom::tidy() %>% 
   knitr::kable()
 ```
@@ -168,7 +168,7 @@ glm(bwt ~ smoken + mrace + gaweeks + momage + ppwt, data = birthweight_df) %>%
 I will also drop momage, which is not significant when accounting for the other variables. 
 
 ```{r}
-bwmodel = glm(bwt ~ smoken + mrace + gaweeks + ppwt, data = birthweight_df)
+bwmodel = glm(bwt ~ gaweeks + mrace + smoken + ppwt, data = birthweight_df)
 
 bwmodel %>% 
   broom::tidy() %>% 
@@ -219,7 +219,7 @@ cv_df =
 cv_df = 
   cv_df %>% 
   mutate(
-    bwmodel = map(train, ~mgcv::gam(bwt ~ s(smoken + mrace + gaweeks + ppwt), data = birthweight_df)),
+    bwmodel = map(train, ~mgcv::gam(bwt ~ s(gaweeks + mrace + smoken + ppwt), data = birthweight_df)),
     model2 = map(train, ~mgcv::gam(bwt ~ s(blength + gaweeks), data = birthweight_df)),
     model3 = map(train, ~mgcv::gam(bwt ~ s(bhead * blength * babysex), data = birthweight_df))) %>%
   mutate(
@@ -240,7 +240,7 @@ cv_df %>%
 
 predic_error
 
-## Clearly mine is performing the worst (lol -  sad!)
+## Clearly mine is performing the worst (sad!)
 
 ```
 
@@ -320,6 +320,9 @@ logvalue_bootstraps
 
 ```
 
+The rsquared value seems to be centered around 0.91 and is slightly left-skewed, but is otherwise fairly symmetrical. 
+
+The logvalue variable has a more symmetrical distribution around 2.02. There may be a very slight skewness to the right but it's hard to tell.
 
 ```{r confidence intervals}
 final_logvalue = 
