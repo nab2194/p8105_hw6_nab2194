@@ -34,7 +34,7 @@ scale_fill_discrete = scale_fill_viridis_d
 ## Problem 1 
 
 ```{r}
-```{r}
+
   homicide_df = 
     read_csv("data/homicide-data.csv") %>% 
     mutate(
@@ -128,27 +128,110 @@ skimr::skim(birthweight_df)
 
 ```
 
-Given background knowledge/research (I work for a lab that studies maternal/infant mortality and morbidity), I first hypothesize that cigarette smoking causes low birthweight that that low maternal age at delivery, maternal race, and family income might confound this relationship, while the mother's pre-pregnancy weight in pounds might modify the relationship.
+Given background knowledge/research (I work for a lab that studies maternal/infant mortality and morbidity and I did a quick literature search [ex: (https://www.marchofdimes.org/complications/low-birthweight.aspx)]), I first hypothesize that cigarette smoking is the primary cause of low birthweight. I further hypothesize that low maternal age at delivery, maternal race, and family income might confound this relationship, and that gestational age in weeks modifies this relationship, as maternal smoking increases the risk of a premature baby. 
 
 I would also like to be clear that I am not hypothesizing that race in and of itself is a cause of low birthweight; rather, structural inequalities associated with being a Black mother in the United States cause low birthweight in infants.
 
-```{r visualizing the dataset to assess linearity}
 
-birthweight_df %>% 
-  ggplot(aes(x = smoken, y = bwt)) + 
-  geom_point()
+My first step is to test to see whether the distribution is approximately normal 
+```{r}
+
 ```
 
-This plot shows that the
 
+
+I will first test bivariate assocations between my predictors of interest and the outcome, bwt. 
+```{r}
+lm(bwt ~ smoken, data = birthweight_df) %>% 
+  broom::tidy()
+
+lm(bwt ~ mrace, data = birthweight_df) %>% 
+  broom::tidy()
+
+lm(bwt ~ fincome, data = birthweight_df) %>% 
+  broom::tidy()
+
+lm(bwt ~ mrace, data = birthweight_df) %>% 
+  broom::tidy()
+
+lm(bwt ~ momage, data = birthweight_df) %>% 
+  broom::tidy()
+
+lm(bwt ~ ppwt, data = birthweight_df) %>% 
+  broom::tidy()
+
+### bivariate_associations = 
+ # birthweight_df %>% 
+  #mutate(
+   # bivar_models =
+    #  map(.x = y, lm(bwt ~ .x, data = birthweight_df),
+    #    results = map(bivariate_associations, broom::tidy())))
+
+```
+
+All of the predictors are significantly associated with the outcome, so I have no reason to exclude any of these from my model before constructing it. 
+
+
+```{r fitting the initial model }
+  
+lm(bwt ~ smoken + mrace + momage + fincome + smoken * ppwt, data = birthweight_df) %>%
+  broom::tidy() %>% 
+  knitr::kable()
+
+```
+
+From this initial model, it does not look like the mother's age at delivery or family income is adding anything to the model. Also, it looks like mother's pre-pregnancy weight is significant but not in interaction with smoking. For parsimony, I'll drop these predictors that were insignificant in the model using a backwards stepwise approach, removing one at a time. 
+
+```{r}
+lm(bwt ~ smoken + mrace + momage + fincome + ppwt, data = birthweight_df) %>%
+  broom::tidy() %>% 
+  knitr::kable()
+```
+
+Fincome is still not significant so I will also drop this variable. 
+
+```{r}
+lm(bwt ~ smoken + mrace + momage + ppwt, data = birthweight_df) %>%
+  broom::tidy() %>% 
+  knitr::kable()
+```
+
+I will also drop momage, which is not significant when accounting for the other variables. 
+
+```{r}
+bwmodel = lm(bwt ~ smoken + mrace + ppwt, data = birthweight_df)
+
+bwmodel %>% 
+  broom::tidy() %>% 
+  knitr::kable()
+
+```
+
+Okay, I'm happy with this model! Now I'm going to plot the model residuals and fitted values. 
+
+```{r plotting residuals against fitted values}
+birthweight_df %>% 
+  add_residuals(bwmodel) %>% 
+    add_predictions(bwmodel) %>% 
+      ggplot(aes(x = pred, y = resid)) + geom_point()
+
+```
+
+There are really obvious problems with this plot - however, for the purposes of this course I am going to acknowledge these issues and move on, since I don't really have the skills to work on fixing this model. 
 
 ```{r creating test/training variables}
 
 ## Anti join of test/train df with train df = .8 of total sample (4342 *.8)
 
-#train_df = sample_n(birthweight_df, 3474)
-#test_df = anti_join(birthweight_df, train_df, by = "id")
+train_df = sample_n(birthweight_df, 3474)
+test_df = anti_join(birthweight_df, train_df)
+
 
 ```
 
+## Problem 3 
+
+```{r}
+
+```
 
