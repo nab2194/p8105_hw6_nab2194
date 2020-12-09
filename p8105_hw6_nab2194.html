@@ -2804,13 +2804,70 @@ model_weather %&gt;%
 
 logb0b1 = 
 model_weather %&gt;% 
-  broom::tidy() %&gt;% 
+  broom::tidy() %&gt;%
   pivot_wider(term,
               names_from = &quot;term&quot;,
-              values_from = &quot;estimate&quot;) %&gt;% 
-    mutate(value = 
-           `(Intercept)` * tmin) %&gt;% 
-              select(value)</code></pre>
+              values_from = &quot;estimate&quot;) %&gt;%
+    mutate(logvalue = 
+           log(`(Intercept)` * tmin)) %&gt;% 
+              select(logvalue)</code></pre>
+<pre class="r"><code>bootstraps = 
+  weather_df %&gt;% 
+  bootstrap(5000, id = &quot;strap_number&quot;) %&gt;% 
+  mutate(
+    fit = map(.x = strap, ~lm(tmax ~ tmin, data = .x))) %&gt;% 
+                mutate(rsquare = map(fit, broom::glance), 
+                      logvalue = map(fit, broom::tidy)) %&gt;% 
+  unnest(rsquare, logvalue) %&gt;% 
+  select(strap_number, term, r.squared, estimate) %&gt;% 
+  mutate(term=str_replace(term,&quot;\\(Intercept\\)&quot;,&quot;intercept&quot;))</code></pre>
+<pre><code>## Warning: unnest() has a new interface. See ?unnest for details.
+## Try `df %&gt;% unnest(c(rsquare, logvalue))`, with `mutate()` if needed</code></pre>
+<pre class="r"><code>rsquarevalue_boostraps = 
+  bootstraps %&gt;% 
+  select(strap_number, r.squared) %&gt;% 
+  ggplot(aes(x = r.squared)) + geom_density()
+
+logvalue_bootstraps = 
+bootstraps %&gt;% 
+     pivot_wider(term,
+              names_from = &quot;term&quot;,
+              values_from = &quot;estimate&quot;) %&gt;%
+    unnest(intercept, tmin) %&gt;% 
+    mutate(logvalue = 
+           log(intercept * tmin)) %&gt;% 
+  ggplot(aes(x = logvalue)) + geom_density()</code></pre>
+<pre><code>## Warning: Values are not uniquely identified; output will contain list-cols.
+## * Use `values_fn = list` to suppress this warning.
+## * Use `values_fn = length` to identify where the duplicates arise
+## * Use `values_fn = {summary_fun}` to summarise duplicates</code></pre>
+<pre><code>## Warning: unnest() has a new interface. See ?unnest for details.
+## Try `df %&gt;% unnest(c(intercept, tmin))`, with `mutate()` if needed</code></pre>
+<pre class="r"><code>final_logvalue = 
+bootstraps %&gt;% 
+     pivot_wider(term,
+              names_from = &quot;term&quot;,
+              values_from = &quot;estimate&quot;) %&gt;%
+    unnest(intercept, tmin) %&gt;% 
+    mutate(logvalue = 
+           log(intercept * tmin)) %&gt;% 
+  summarize(
+    ci_lower = quantile(logvalue, 0.025), 
+    ci_upper = quantile(logvalue, 0.975)) %&gt;% 
+    knitr::kable()</code></pre>
+<pre><code>## Warning: Values are not uniquely identified; output will contain list-cols.
+## * Use `values_fn = list` to suppress this warning.
+## * Use `values_fn = length` to identify where the duplicates arise
+## * Use `values_fn = {summary_fun}` to summarise duplicates</code></pre>
+<pre><code>## Warning: unnest() has a new interface. See ?unnest for details.
+## Try `df %&gt;% unnest(c(intercept, tmin))`, with `mutate()` if needed</code></pre>
+<pre class="r"><code>final_rsquared = 
+  bootstraps %&gt;% 
+  select(strap_number, r.squared) %&gt;% 
+  summarize(
+    ci_lower = quantile(r.squared, 0.025), 
+    ci_upper = quantile(r.squared, 0.975)) %&gt;% 
+  knitr::kable()</code></pre>
 </div>
 
 

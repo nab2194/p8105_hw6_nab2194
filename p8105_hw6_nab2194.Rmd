@@ -293,7 +293,7 @@ model_weather =
   lm(tmax ~ tmin, data = weather_df) 
 ```
 
-```{r getting values for a single model}
+```{r getting values for a single model first}
 
 rsquare = 
 model_weather %>% 
@@ -302,17 +302,70 @@ model_weather %>%
 
 logb0b1 = 
 model_weather %>% 
-  broom::tidy() %>% 
+  broom::tidy() %>%
   pivot_wider(term,
               names_from = "term",
-              values_from = "estimate") %>% 
-    mutate(value = 
-           `(Intercept)` * tmin) %>% 
-              select(value)
+              values_from = "estimate") %>%
+    mutate(logvalue = 
+           log(`(Intercept)` * tmin)) %>% 
+              select(logvalue)
+
 
 ```
 
-```{r bootstrapping}
+```{r drawing 5000 bootstrap samples and getting distributions}
+
+bootstraps = 
+  weather_df %>% 
+  bootstrap(5000, id = "strap_number") %>% 
+  mutate(
+    fit = map(.x = strap, ~lm(tmax ~ tmin, data = .x))) %>% 
+                mutate(rsquare = map(fit, broom::glance), 
+                      logvalue = map(fit, broom::tidy)) %>% 
+  unnest(rsquare, logvalue) %>% 
+  select(strap_number, term, r.squared, estimate) %>% 
+  mutate(term=str_replace(term,"\\(Intercept\\)","intercept"))
+
+rsquarevalue_boostraps = 
+  bootstraps %>% 
+  select(strap_number, r.squared) %>% 
+  ggplot(aes(x = r.squared)) + geom_density()
+
+logvalue_bootstraps = 
+bootstraps %>% 
+     pivot_wider(term,
+              names_from = "term",
+              values_from = "estimate") %>%
+    unnest(intercept, tmin) %>% 
+    mutate(logvalue = 
+           log(intercept * tmin)) %>% 
+  ggplot(aes(x = logvalue)) + geom_density()
+
+```
+
+
+
+```{r confidence intervals}
+final_logvalue = 
+bootstraps %>% 
+     pivot_wider(term,
+              names_from = "term",
+              values_from = "estimate") %>%
+    unnest(intercept, tmin) %>% 
+    mutate(logvalue = 
+           log(intercept * tmin)) %>% 
+  summarize(
+    ci_lower = quantile(logvalue, 0.025), 
+    ci_upper = quantile(logvalue, 0.975)) %>% 
+    knitr::kable()
+
+final_rsquared = 
+  bootstraps %>% 
+  select(strap_number, r.squared) %>% 
+  summarize(
+    ci_lower = quantile(r.squared, 0.025), 
+    ci_upper = quantile(r.squared, 0.975)) %>% 
+  knitr::kable()
 
 ```
 
