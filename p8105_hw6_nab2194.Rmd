@@ -133,11 +133,12 @@ Given background knowledge/research (I work for a lab that studies maternal/infa
 I would also like to be clear that I am not hypothesizing that race in and of itself is a cause of low birthweight; rather, structural inequalities associated with being a Black mother in the United States cause low birthweight in infants.
 
 
-My first step is to test to see whether the distribution is approximately normal 
+My first step is to test to see whether the distribution is approximately normal by plotting cigarette smoking on bwt: 
 ```{r}
-
+birthweight_df %>% 
+  ggplot(aes(x = smoken, y = bwt)) + geom_point()
 ```
-
+Looks like a linear model will 10000% not work here, based on my above results. Good to know. 
 
 
 I will first test bivariate assocations between my predictors of interest and the outcome, bwt. 
@@ -146,6 +147,9 @@ lm(bwt ~ smoken, data = birthweight_df) %>%
   broom::tidy()
 
 lm(bwt ~ mrace, data = birthweight_df) %>% 
+  broom::tidy()
+
+lm(bwt ~ gaweeks, data = birthweight_df) %>% 
   broom::tidy()
 
 lm(bwt ~ fincome, data = birthweight_df) %>% 
@@ -159,14 +163,6 @@ lm(bwt ~ momage, data = birthweight_df) %>%
 
 lm(bwt ~ ppwt, data = birthweight_df) %>% 
   broom::tidy()
-
-### bivariate_associations = 
- # birthweight_df %>% 
-  #mutate(
-   # bivar_models =
-    #  map(.x = y, lm(bwt ~ .x, data = birthweight_df),
-    #    results = map(bivariate_associations, broom::tidy())))
-
 ```
 
 All of the predictors are significantly associated with the outcome, so I have no reason to exclude any of these from my model before constructing it. 
@@ -174,7 +170,7 @@ All of the predictors are significantly associated with the outcome, so I have n
 
 ```{r fitting the initial model }
   
-lm(bwt ~ smoken + mrace + momage + fincome + smoken * ppwt, data = birthweight_df) %>%
+lm(bwt ~ smoken + mrace + gaweeks + momage + fincome + smoken * ppwt, data = birthweight_df) %>%
   broom::tidy() %>% 
   knitr::kable()
 
@@ -183,7 +179,7 @@ lm(bwt ~ smoken + mrace + momage + fincome + smoken * ppwt, data = birthweight_d
 From this initial model, it does not look like the mother's age at delivery or family income is adding anything to the model. Also, it looks like mother's pre-pregnancy weight is significant but not in interaction with smoking. For parsimony, I'll drop these predictors that were insignificant in the model using a backwards stepwise approach, removing one at a time. 
 
 ```{r}
-lm(bwt ~ smoken + mrace + momage + fincome + ppwt, data = birthweight_df) %>%
+lm(bwt ~ smoken + mrace + gaweeks + momage + fincome + ppwt, data = birthweight_df) %>%
   broom::tidy() %>% 
   knitr::kable()
 ```
@@ -191,7 +187,7 @@ lm(bwt ~ smoken + mrace + momage + fincome + ppwt, data = birthweight_df) %>%
 Fincome is still not significant so I will also drop this variable. 
 
 ```{r}
-lm(bwt ~ smoken + mrace + momage + ppwt, data = birthweight_df) %>%
+lm(bwt ~ smoken + mrace + gaweeks + momage + ppwt, data = birthweight_df) %>%
   broom::tidy() %>% 
   knitr::kable()
 ```
@@ -199,7 +195,7 @@ lm(bwt ~ smoken + mrace + momage + ppwt, data = birthweight_df) %>%
 I will also drop momage, which is not significant when accounting for the other variables. 
 
 ```{r}
-bwmodel = lm(bwt ~ smoken + mrace + ppwt, data = birthweight_df)
+bwmodel = lm(bwt ~ smoken + mrace + gaweeks + ppwt, data = birthweight_df)
 
 bwmodel %>% 
   broom::tidy() %>% 
@@ -211,27 +207,84 @@ Okay, I'm happy with this model! Now I'm going to plot the model residuals and f
 
 ```{r plotting residuals against fitted values}
 birthweight_df %>% 
-  add_residuals(bwmodel) %>% 
+  add_residuals(bwmodel) %>%
+      ggplot(aes(x = resid)) + geom_density()
+
+## Slightly skewed but not too bad. Mostly centered around 0. 
+
+birthweight_df %>% 
+  add_residuals(bwmodel) %>%
     add_predictions(bwmodel) %>% 
       ggplot(aes(x = pred, y = resid)) + geom_point()
 
-```
-
-There are really obvious problems with this plot - however, for the purposes of this course I am going to acknowledge these issues and move on, since I don't really have the skills to work on fixing this model. 
-
-```{r creating test/training variables}
-
-## Anti join of test/train df with train df = .8 of total sample (4342 *.8)
-
-train_df = sample_n(birthweight_df, 3474)
-test_df = anti_join(birthweight_df, train_df)
-
+# This looks mostly okay, since it's almost the same residual plot as what was shown in lecture. There does seem to maybe be something weird happening in the top-left of the plot but for the purposes of this course I'll move on.
 
 ```
+
+Model 2 (from HW): 
+```{r}
+model2 = lm(bwt ~ blength + gaweeks, data = birthweight_df) 
+
+```
+
+Model 3 (from HW): 
+```{r}
+model3 = lm(bwt ~ bhead * blength * babysex, data = birthweight_df)
+```
+
+
+Now I'm going to compare my model with the 2 provided models using cross-validation. 
+
+```{r cross-validation for prob 2 }
+
+cv_df = 
+  crossv_mc(birthweight_df, 100) %>% 
+   mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble))
+
+cv_df = 
+  cv_df %>% 
+  mutate(
+    bwmodel = map(train, ~lm(bwt ~ smoken + mrace + gaweeks + ppwt, data = birthweight_df)),
+    model2 = map(train, ~lm(bwt ~ blength + gaweeks, data = birthweight_df)),
+    model3 = map(train, ~lm(bwt ~ bhead * blength * babysex, data = birthweight_df))) %>% 
+  mutate(
+    rmse_bwmodel = map2_dbl(bwmodel, test, ~rmse(model = .x, data = .y)),
+    rmse_model2 = map2_dbl(model2, test, ~rmse(model = .x, data = .y)),
+    rmse_model3 = map2_dbl(model3, test, ~rmse(model = .x, data = .y)))
+
+predic_error = 
+cv_df %>% 
+  select(starts_with("rmse")) %>% 
+  pivot_longer(
+    everything(),
+    names_to = "model", 
+    values_to = "rmse",
+    names_prefix = "rmse_") %>% 
+  mutate(model = fct_inorder(model)) %>% 
+  ggplot(aes(x = model, y = rmse)) + geom_violin()
+
+predic_error
+
+## Clearly mine is performing the worst (lol -  sad!)
+
+```
+
 
 ## Problem 3 
 
 ```{r}
-
+weather_df = 
+  rnoaa::meteo_pull_monitors(
+    c("USW00094728"),
+    var = c("PRCP", "TMIN", "TMAX"), 
+    date_min = "2017-01-01",
+    date_max = "2017-12-31") %>%
+  mutate(
+    name = recode(id, USW00094728 = "CentralPark_NY"),
+    tmin = tmin / 10,
+    tmax = tmax / 10) %>%
+  select(name, id, everything())
 ```
 
