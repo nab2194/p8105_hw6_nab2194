@@ -141,33 +141,6 @@ birthweight_df %>%
 Looks like a linear model will 10000% not work here, based on my above results. Good to know. 
 
 
-I will first test bivariate assocations between my predictors of interest and the outcome, bwt. 
-```{r}
-lm(bwt ~ smoken, data = birthweight_df) %>% 
-  broom::tidy()
-
-lm(bwt ~ mrace, data = birthweight_df) %>% 
-  broom::tidy()
-
-lm(bwt ~ gaweeks, data = birthweight_df) %>% 
-  broom::tidy()
-
-lm(bwt ~ fincome, data = birthweight_df) %>% 
-  broom::tidy()
-
-lm(bwt ~ mrace, data = birthweight_df) %>% 
-  broom::tidy()
-
-lm(bwt ~ momage, data = birthweight_df) %>% 
-  broom::tidy()
-
-lm(bwt ~ ppwt, data = birthweight_df) %>% 
-  broom::tidy()
-```
-
-All of the predictors are significantly associated with the outcome, so I have no reason to exclude any of these from my model before constructing it. 
-
-
 ```{r fitting the initial model }
 
 glm(bwt ~ smoken + mrace + gaweeks + momage + fincome + smoken * ppwt, data = birthweight_df) %>%
@@ -235,7 +208,7 @@ model3 = glm(bwt ~ bhead * blength * babysex, data = birthweight_df)
 
 Now I'm going to compare my model with the 2 provided models using cross-validation. 
 
-```{r cross-validation for prob 2 }
+```{r warning:FALSE cross-validation for prob 2 }
 
 cv_df = 
   crossv_mc(birthweight_df, 100) %>% 
@@ -331,6 +304,8 @@ rsquarevalue_boostraps =
   select(strap_number, r.squared) %>% 
   ggplot(aes(x = r.squared)) + geom_density()
 
+rsquarevalue_boostraps
+
 logvalue_bootstraps = 
 bootstraps %>% 
      pivot_wider(term,
@@ -341,8 +316,9 @@ bootstraps %>%
            log(intercept * tmin)) %>% 
   ggplot(aes(x = logvalue)) + geom_density()
 
-```
+logvalue_bootstraps
 
+```
 
 
 ```{r confidence intervals}
@@ -359,6 +335,8 @@ bootstraps %>%
     ci_upper = quantile(logvalue, 0.975)) %>% 
     knitr::kable()
 
+final_logvalue
+
 final_rsquared = 
   bootstraps %>% 
   select(strap_number, r.squared) %>% 
@@ -366,6 +344,8 @@ final_rsquared =
     ci_lower = quantile(r.squared, 0.025), 
     ci_upper = quantile(r.squared, 0.975)) %>% 
   knitr::kable()
+
+final_rsquared
 
 ```
 
